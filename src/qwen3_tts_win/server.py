@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, status
+from fastapi import BackgroundTasks, FastAPI, HTTPException, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -661,7 +661,7 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
         }
 
     @app.post("/v1/tts/jobs", status_code=status.HTTP_202_ACCEPTED)
-    def create_tts_job(request: CreateTTSJobRequest) -> dict[str, Any]:
+    def create_tts_job(request: CreateTTSJobRequest, background_tasks: BackgroundTasks) -> dict[str, Any]:
         gc.sweep_now()
         normalized = normalize_request(request, server_settings)
         validate_request(normalized, server_settings)
@@ -669,7 +669,7 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
             job = store.create_job(normalized)
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-        worker.submit(job["id"])
+        background_tasks.add_task(worker.submit, job["id"])
         return job
 
     @app.get("/v1/tts/jobs/{job_id}")

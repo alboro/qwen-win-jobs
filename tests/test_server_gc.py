@@ -25,6 +25,7 @@ if "fastapi" not in sys.modules:
             return lambda func: func
 
     sys.modules["fastapi"] = types.SimpleNamespace(
+        BackgroundTasks=object,
         FastAPI=_DummyFastAPI,
         HTTPException=Exception,
         status=types.SimpleNamespace(
