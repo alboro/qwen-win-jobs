@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qwen3-tts-win"
+version = "0.1.0"
+description = "Windows-first Qwen3-TTS 0.6B CLI and polling jobs API for local Russian synthesis."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = {file = "LICENSE"}
+dependencies = [
+    "fastapi>=0.115,<1",
+    "numpy>=1.26",
+    "qwen-tts",
+    "soundfile>=0.13",
+    "transformers>=4.57,<5",
+    "uvicorn>=0.35,<1",
+]
+
+[project.scripts]
+qwen3-tts-win = "qwen3_tts_win.cli:main"
+qwen3-tts-win-server = "qwen3_tts_win.server:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
