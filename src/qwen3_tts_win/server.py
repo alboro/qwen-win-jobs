@@ -122,6 +122,13 @@ class LoadedServerModel:
 logger = logging.getLogger(__name__)
 
 
+def write_json_atomic(path: Path, data: Any) -> None:
+    """Write JSON without leaving a half-written file after process/GPU crashes."""
+    tmp_path = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+    tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path.replace(path)
+
+
 class JobStore:
     def __init__(self, jobs_dir: Path):
         self.jobs_dir = jobs_dir
@@ -132,15 +139,21 @@ class JobStore:
 
     def _load_existing_jobs(self) -> None:
         for job_file in self.jobs_dir.glob("*/job.json"):
-            job = json.loads(job_file.read_text(encoding="utf-8"))
-            if job["status"] in {"queued", "in_progress"}:
+            try:
+                job = json.loads(job_file.read_text(encoding="utf-8"))
+                job_id = job["id"]
+                status_value = job["status"]
+            except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+                logger.warning("Skipping unreadable job file %s: %s", job_file, exc)
+                continue
+            if status_value in {"queued", "in_progress"}:
                 now = utcnow_iso()
                 job["status"] = "failed"
                 job["error"] = "Server restarted before the job completed."
                 job["failed_at"] = now
                 job["updated_at"] = now
-                job_file.write_text(json.dumps(job, ensure_ascii=False, indent=2), encoding="utf-8")
-            self._jobs[job["id"]] = job
+                write_json_atomic(job_file, job)
+            self._jobs[job_id] = job
 
     def create_job(self, request: CreateTTSJobRequest) -> dict[str, Any]:
         job_id = uuid.uuid4().hex
@@ -197,10 +210,7 @@ class JobStore:
             request_payload["reference_audio_base64"] = None
             job["reference_filename"] = reference_path.name
 
-        (job_dir / "request.json").write_text(
-            json.dumps(request_payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        write_json_atomic(job_dir / "request.json", request_payload)
 
         with self._lock:
             self._jobs[job_id] = job
@@ -285,10 +295,7 @@ class JobStore:
         return removed_ids
 
     def _write_job(self, job: dict[str, Any]) -> None:
-        (self.job_dir(job["id"]) / "job.json").write_text(
-            json.dumps(job, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        write_json_atomic(self.job_dir(job["id"]) / "job.json", job)
 
     @staticmethod
     def _is_terminal(job: dict[str, Any]) -> bool:
