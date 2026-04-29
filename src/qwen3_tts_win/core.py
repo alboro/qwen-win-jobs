@@ -16,6 +16,7 @@ from typing import Any
 
 DEFAULT_MODEL = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
 DEFAULT_CUSTOM_VOICE_MODEL = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
+DEFAULT_VOICE_DESIGN_MODEL = "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"
 DEFAULT_LANGUAGE = "Russian"
 DEFAULT_REFERENCE_PREFIX = "reference"
 DEFAULT_SPEAKER = "Ryan"
@@ -79,6 +80,18 @@ class SynthesisResult:
     sample_rate: int
     synthesis_seconds: float
     x_vector_only_mode: bool | None = None
+
+
+def resolve_model_for_task(model_name: str | None, task: str) -> str:
+    task_normalized = str(task or "voice_clone").strip().lower()
+    normalized_model = str(model_name or DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    if normalized_model != DEFAULT_MODEL:
+        return normalized_model
+    if task_normalized == "custom_voice":
+        return DEFAULT_CUSTOM_VOICE_MODEL
+    if task_normalized == "voice_design":
+        return DEFAULT_VOICE_DESIGN_MODEL
+    return DEFAULT_MODEL
 
 
 def ensure_project_runtime_dirs() -> None:
@@ -517,6 +530,16 @@ def synthesize_to_file(loaded_model: ModelLoadResult, request: SynthesisRequest)
                 text=chunk,
                 language=request.language,
                 speaker=request.speaker,
+                instruct=request.instruct or "",
+                **generation_kwargs,
+            )
+            generated.append(wavs[0])
+            sample_rate = int(sr)
+    elif task == "voice_design":
+        for chunk in chunks:
+            wavs, sr = loaded_model.model.generate_voice_design(
+                text=chunk,
+                language=request.language,
                 instruct=request.instruct or "",
                 **generation_kwargs,
             )

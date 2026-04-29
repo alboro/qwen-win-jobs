@@ -42,6 +42,7 @@ from qwen3_tts_win.core import (
     load_qwen_model,
     prepare_reference_audio,
     resolve_path,
+    resolve_model_for_task,
     resolve_shared_dir,
     synthesize_to_file,
 )
@@ -74,12 +75,12 @@ AUDIO_MIME_TO_EXT = {
 
 class CreateTTSJobRequest(BaseModel):
     input: str = Field(..., min_length=1)
-    model: str = Field(default=DEFAULT_MODEL)
-    task: str = Field(default="voice_clone")
-    voice: str = Field(default=DEFAULT_REFERENCE_PREFIX)
-    response_format: str = Field(default="wav")
-    language: str = Field(default=DEFAULT_LANGUAGE)
-    speaker: str = Field(default=DEFAULT_SPEAKER)
+    model: str | None = Field(default=None)
+    task: str | None = Field(default=None)
+    voice: str | None = Field(default=None)
+    response_format: str | None = Field(default="wav")
+    language: str | None = Field(default=None)
+    speaker: str | None = Field(default=None)
     instruct: str | None = None
     reference_text: str | None = None
     reference_audio_base64: str | None = None
@@ -586,7 +587,7 @@ def parse_args(argv: list[str] | None = None) -> ServerSettings:
     parser.add_argument("--shared-dir", default=str(DEFAULT_SHARED_DIR))
     parser.add_argument("--jobs-dir", default=str(DEFAULT_JOBS_DIR))
     parser.add_argument("--model", default=DEFAULT_MODEL)
-    parser.add_argument("--task", choices=("voice_clone", "custom_voice"), default="voice_clone")
+    parser.add_argument("--task", choices=("voice_clone", "custom_voice", "voice_design"), default="voice_clone")
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument("--dtype", choices=("auto", "float16", "bfloat16", "float32"), default="auto")
     parser.add_argument(
@@ -604,13 +605,14 @@ def parse_args(argv: list[str] | None = None) -> ServerSettings:
     parser.add_argument("--downloaded-job-retention-hours", type=int, default=DEFAULT_DOWNLOADED_JOB_RETENTION_HOURS)
     parser.add_argument("--cleanup-interval-seconds", type=int, default=DEFAULT_CLEANUP_INTERVAL_SECONDS)
     args = parser.parse_args(argv)
+    resolved_model = resolve_model_for_task(args.model, args.task)
 
     return ServerSettings(
         host=args.host,
         port=args.port,
         shared_dir=resolve_shared_dir(args.shared_dir),
         jobs_dir=resolve_path(args.jobs_dir),
-        model=args.model,
+        model=resolved_model,
         task=args.task,
         device=args.device,
         dtype=args.dtype,
@@ -712,10 +714,11 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
 
 
 def normalize_request(request: CreateTTSJobRequest, settings: ServerSettings) -> CreateTTSJobRequest:
+    task = (request.task or settings.task).strip()
     return CreateTTSJobRequest(
         input=request.input.strip(),
-        model=(request.model or settings.model).strip(),
-        task=(request.task or settings.task).strip(),
+        model=resolve_model_for_task((request.model or settings.model).strip(), task),
+        task=task,
         voice=(request.voice or DEFAULT_REFERENCE_PREFIX).strip() or DEFAULT_REFERENCE_PREFIX,
         response_format=(request.response_format or "wav").lower(),
         language=(request.language or settings.language).strip() or settings.language,

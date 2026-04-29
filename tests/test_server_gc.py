@@ -41,14 +41,16 @@ if "fastapi.responses" not in sys.modules:
 
 if "pydantic" not in sys.modules:
     class _DummyBaseModel:
-        pass
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
 
     def _dummy_field(default=None, **kwargs):
         return default
 
     sys.modules["pydantic"] = types.SimpleNamespace(BaseModel=_DummyBaseModel, Field=_dummy_field)
 
-from qwen3_tts_win.server import JobStore
+from qwen3_tts_win.server import JobStore, ServerSettings, normalize_request
 
 
 class DummyRequest:
@@ -95,6 +97,13 @@ def iso_utc(hours_ago: int) -> str:
 
 
 class TestJobStoreCleanup(unittest.TestCase):
+    def test_normalize_request_inherits_server_voice_design_defaults(self):
+        settings = ServerSettings(model="Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign", task="voice_design")
+        normalized = normalize_request(DummyRequest(input="hello", model=None, task=None), settings)
+
+        self.assertEqual(normalized.task, "voice_design")
+        self.assertEqual(normalized.model, "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign")
+
     def test_mark_downloaded_updates_job_metadata(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             store = JobStore(Path(temp_dir))

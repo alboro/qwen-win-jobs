@@ -31,6 +31,7 @@ from qwen3_tts_win.core import (
     resolve_attn_implementation,
     resolve_dtype,
     resolve_ffmpeg,
+    resolve_model_for_task,
     resolve_output_path,
     resolve_path,
     resolve_reference_arg,
@@ -64,7 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Voice clone: INPUT_FILE OUTPUT [REFERENCE_OR_PREFIX]. "
             "With --text: TEXT OUTPUT [REFERENCE_OR_PREFIX]. "
             "With --file: OUTPUT [REFERENCE_OR_PREFIX]. "
-            "Custom voice: INPUT_FILE OUTPUT, or --text TEXT OUTPUT."
+            "Custom voice / voice design: INPUT_FILE OUTPUT, or --text TEXT OUTPUT."
         ),
     )
     parser.add_argument("--file", dest="input_file", help="Read text from a UTF-8 file.")
@@ -84,11 +85,15 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="Voice clone prompt mode. auto uses x-vector only when no reference text is available.",
     )
-    parser.add_argument("--task", choices=("voice_clone", "custom_voice"), default="voice_clone")
+    parser.add_argument("--task", choices=("voice_clone", "custom_voice", "voice_design"), default="voice_clone")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--language", default=DEFAULT_LANGUAGE)
     parser.add_argument("--speaker", default=DEFAULT_SPEAKER)
-    parser.add_argument("--instruct", default=None, help="Optional natural-language instruction for custom_voice.")
+    parser.add_argument(
+        "--instruct",
+        default=None,
+        help="Optional natural-language instruction for custom_voice or voice_design.",
+    )
     parser.add_argument("--device", choices=("auto", "cuda", "cpu"), default="auto")
     parser.add_argument("--dtype", choices=("auto", "float16", "bfloat16", "float32"), default="auto")
     parser.add_argument(
@@ -120,7 +125,7 @@ def resolve_cli_inputs(
     if args.input_file:
         allowed_lengths = (1, 2) if wants_reference else (1,)
         if len(args.inputs) not in allowed_lengths:
-            parser.error("With --file pass OUTPUT [REFERENCE_OR_PREFIX] for voice_clone, or OUTPUT for custom_voice.")
+            parser.error("With --file pass OUTPUT [REFERENCE_OR_PREFIX] for voice_clone, or OUTPUT for custom_voice/voice_design.")
         input_path = resolve_path(args.input_file)
         text = read_text_file(input_path)
         output_path = Path(args.inputs[0])
@@ -130,7 +135,7 @@ def resolve_cli_inputs(
     if args.text:
         allowed_lengths = (2, 3) if wants_reference else (2,)
         if len(args.inputs) not in allowed_lengths:
-            parser.error("With --text pass TEXT OUTPUT [REFERENCE_OR_PREFIX] for voice_clone, or TEXT OUTPUT for custom_voice.")
+            parser.error("With --text pass TEXT OUTPUT [REFERENCE_OR_PREFIX] for voice_clone, or TEXT OUTPUT for custom_voice/voice_design.")
         text = args.inputs[0].strip()
         if not text:
             parser.error("Text must not be empty.")
@@ -227,7 +232,7 @@ def run_doctor(args: argparse.Namespace, shared_dir: Path) -> int:
     except Exception as exc:
         print(f"selection: ERROR ({exc})")
 
-    print(f"default_model: {args.model}")
+    print(f"default_model: {resolve_model_for_task(args.model, args.task)}")
     return 0
 
 
@@ -241,9 +246,10 @@ def print_run_summary(
     reference_text: str | None,
 ) -> None:
     word_count = len(resolved.text.split())
+    effective_model = resolve_model_for_task(args.model, args.task)
     print(f"Start: {format_timestamp(started_at)}")
     print(f"Task: {args.task}")
-    print(f"Model: {args.model}")
+    print(f"Model: {effective_model}")
     print(f"Input: {resolved.text_source_label}")
     print(f"Output: {output_path}")
     print(f"Language: {args.language}")
@@ -294,6 +300,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         ensure_project_runtime_dirs()
+        args.model = resolve_model_for_task(args.model, args.task)
         resolved = resolve_cli_inputs(args, parser, shared_dir)
         output_path = resolve_output_path(resolved.output_path, overwrite=args.overwrite)
 

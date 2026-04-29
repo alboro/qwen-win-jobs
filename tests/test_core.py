@@ -10,14 +10,27 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from qwen3_tts_win.core import (
+    DEFAULT_CUSTOM_VOICE_MODEL,
+    DEFAULT_MODEL,
+    DEFAULT_VOICE_DESIGN_MODEL,
     find_reference_in_shared,
     find_reference_text_sidecar,
+    resolve_model_for_task,
     resolve_reference_text,
     split_text,
 )
 
 
 class TestCoreHelpers(unittest.TestCase):
+    def test_resolve_model_for_task_uses_task_specific_defaults(self):
+        self.assertEqual(resolve_model_for_task(DEFAULT_MODEL, "voice_clone"), DEFAULT_MODEL)
+        self.assertEqual(resolve_model_for_task(DEFAULT_MODEL, "custom_voice"), DEFAULT_CUSTOM_VOICE_MODEL)
+        self.assertEqual(resolve_model_for_task(DEFAULT_MODEL, "voice_design"), DEFAULT_VOICE_DESIGN_MODEL)
+
+    def test_resolve_model_for_task_preserves_explicit_model(self):
+        explicit = "Qwen/custom-model"
+        self.assertEqual(resolve_model_for_task(explicit, "voice_design"), explicit)
+
     def test_split_text_respects_max_chars(self):
         text = "First sentence. Second sentence is slightly longer. Third sentence."
         chunks = split_text(text, max_chars=35)
