@@ -44,6 +44,9 @@ REFERENCE_EXTENSIONS = {
     ".webm",
 }
 
+QWEN_STRESS_VOWELS = "АаЕеИиОоУуЫыЭэЮюЯя"
+QWEN_STRESS_MARK_RE = re.compile(rf"([{QWEN_STRESS_VOWELS}])\u0301")
+
 
 @dataclass(slots=True)
 class ModelLoadResult:
@@ -92,6 +95,14 @@ def resolve_model_for_task(model_name: str | None, task: str) -> str:
     if task_normalized == "voice_design":
         return DEFAULT_VOICE_DESIGN_MODEL
     return DEFAULT_MODEL
+
+
+def strip_qwen_stress_marks(text: str | None) -> str | None:
+    if text is None:
+        return None
+    if not text:
+        return text
+    return QWEN_STRESS_MARK_RE.sub(r"\1", text)
 
 
 def ensure_project_runtime_dirs() -> None:

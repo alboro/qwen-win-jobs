@@ -104,6 +104,23 @@ class TestJobStoreCleanup(unittest.TestCase):
         self.assertEqual(normalized.task, "voice_design")
         self.assertEqual(normalized.model, "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign")
 
+    def test_normalize_request_strips_qwen_stress_marks_from_text_fields(self):
+        settings = ServerSettings(model="Qwen/Qwen3-TTS-12Hz-1.7B-Base", task="voice_clone")
+        normalized = normalize_request(
+            DummyRequest(
+                input="Фра́нция",
+                model=None,
+                task=None,
+                instruct="Скажи Царя́ спокойно",
+                reference_text="То́мас Пэ́йн",
+            ),
+            settings,
+        )
+
+        self.assertEqual(normalized.input, "Франция")
+        self.assertEqual(normalized.instruct, "Скажи Царя спокойно")
+        self.assertEqual(normalized.reference_text, "Томас Пэйн")
+
     def test_mark_downloaded_updates_job_metadata(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             store = JobStore(Path(temp_dir))

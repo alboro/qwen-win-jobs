@@ -44,6 +44,7 @@ from qwen3_tts_win.core import (
     resolve_path,
     resolve_model_for_task,
     resolve_shared_dir,
+    strip_qwen_stress_marks,
     synthesize_to_file,
 )
 
@@ -716,15 +717,15 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
 def normalize_request(request: CreateTTSJobRequest, settings: ServerSettings) -> CreateTTSJobRequest:
     task = (request.task or settings.task).strip()
     return CreateTTSJobRequest(
-        input=request.input.strip(),
+        input=strip_qwen_stress_marks(request.input.strip()) or "",
         model=resolve_model_for_task((request.model or settings.model).strip(), task),
         task=task,
         voice=(request.voice or DEFAULT_REFERENCE_PREFIX).strip() or DEFAULT_REFERENCE_PREFIX,
         response_format=(request.response_format or "wav").lower(),
         language=(request.language or settings.language).strip() or settings.language,
         speaker=(request.speaker or settings.speaker).strip() or settings.speaker,
-        instruct=request.instruct,
-        reference_text=" ".join(request.reference_text.split()) if request.reference_text else None,
+        instruct=strip_qwen_stress_marks(request.instruct),
+        reference_text=strip_qwen_stress_marks(" ".join(request.reference_text.split())) if request.reference_text else None,
         reference_audio_base64=request.reference_audio_base64,
         reference_audio_filename=request.reference_audio_filename,
         x_vector_only_mode=request.x_vector_only_mode,

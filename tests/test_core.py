@@ -18,10 +18,21 @@ from qwen3_tts_win.core import (
     resolve_model_for_task,
     resolve_reference_text,
     split_text,
+    strip_qwen_stress_marks,
 )
 
 
 class TestCoreHelpers(unittest.TestCase):
+    def test_strip_qwen_stress_marks_removes_combining_acute_from_cyrillic_vowels(self):
+        self.assertEqual(
+            strip_qwen_stress_marks("Фра́нция, Царя́, Исто́чниками, чудеса́"),
+            "Франция, Царя, Источниками, чудеса",
+        )
+
+    def test_strip_qwen_stress_marks_leaves_non_target_text_intact(self):
+        self.assertEqual(strip_qwen_stress_marks("abc e\u0301 déjà vu"), "abc e\u0301 déjà vu")
+        self.assertIsNone(strip_qwen_stress_marks(None))
+
     def test_resolve_model_for_task_uses_task_specific_defaults(self):
         self.assertEqual(resolve_model_for_task(DEFAULT_MODEL, "voice_clone"), DEFAULT_MODEL)
         self.assertEqual(resolve_model_for_task(DEFAULT_MODEL, "custom_voice"), DEFAULT_CUSTOM_VOICE_MODEL)

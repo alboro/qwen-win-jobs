@@ -38,6 +38,7 @@ from qwen3_tts_win.core import (
     resolve_reference_text,
     resolve_shared_dir,
     select_device,
+    strip_qwen_stress_marks,
     synthesize_to_file,
     SynthesisRequest,
 )
@@ -303,6 +304,7 @@ def main(argv: list[str] | None = None) -> int:
         args.model = resolve_model_for_task(args.model, args.task)
         resolved = resolve_cli_inputs(args, parser, shared_dir)
         output_path = resolve_output_path(resolved.output_path, overwrite=args.overwrite)
+        text_for_tts = strip_qwen_stress_marks(resolved.text) or ""
 
         reference_text: str | None = None
         reference_text_source: str | None = None
@@ -317,6 +319,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             if args.require_ref_text and not reference_text:
                 raise ValueError("Reference text is required but was not provided or found as a sidecar.")
+            reference_text = strip_qwen_stress_marks(reference_text)
 
         started_at = datetime.now().astimezone()
         wall_started = time.perf_counter()
@@ -351,7 +354,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
             request = SynthesisRequest(
-                text=resolved.text,
+                text=text_for_tts,
                 output_path=output_path,
                 task=args.task,
                 language=args.language,
@@ -359,7 +362,7 @@ def main(argv: list[str] | None = None) -> int:
                 reference_text=reference_text,
                 x_vector_only_mode=parse_x_vector_only_mode(args.x_vector_only_mode),
                 speaker=args.speaker,
-                instruct=args.instruct,
+                instruct=strip_qwen_stress_marks(args.instruct),
                 max_chars=args.max_chars,
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,
