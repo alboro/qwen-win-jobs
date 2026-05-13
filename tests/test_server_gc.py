@@ -50,7 +50,7 @@ if "pydantic" not in sys.modules:
 
     sys.modules["pydantic"] = types.SimpleNamespace(BaseModel=_DummyBaseModel, Field=_dummy_field)
 
-from qwen3_tts_win.server import JobStore, ServerSettings, normalize_request
+from qwen3_tts_win.server import JobStore, ServerSettings, normalize_request, validate_request
 
 
 class DummyRequest:
@@ -65,6 +65,7 @@ class DummyRequest:
         language: str = "Russian",
         speaker: str = "Ryan",
         instruct: str | None = None,
+        instructions: str | None = None,
         reference_text: str | None = None,
         reference_audio_base64: str | None = None,
         reference_audio_filename: str | None = None,
@@ -82,6 +83,7 @@ class DummyRequest:
         self.language = language
         self.speaker = speaker
         self.instruct = instruct
+        self.instructions = instructions
         self.reference_text = reference_text
         self.reference_audio_base64 = reference_audio_base64
         self.reference_audio_filename = reference_audio_filename
@@ -120,6 +122,45 @@ class TestJobStoreCleanup(unittest.TestCase):
         self.assertEqual(normalized.input, "Франция")
         self.assertEqual(normalized.instruct, "Скажи Царя спокойно")
         self.assertEqual(normalized.reference_text, "Томас Пэйн")
+
+    def test_normalize_request_accepts_openai_instructions_alias(self):
+        settings = ServerSettings(model="Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice", task="custom_voice")
+        normalized = normalize_request(
+            DummyRequest(
+                input="hello",
+                model=None,
+                task=None,
+                instructions="Read with a calm interrogative intonation.",
+            ),
+            settings,
+        )
+
+        self.assertEqual(normalized.instruct, "Read with a calm interrogative intonation.")
+        self.assertIsNone(normalized.instructions)
+
+    def test_validate_rejects_instruct_for_voice_clone(self):
+        settings = ServerSettings(model="Qwen/Qwen3-TTS-12Hz-1.7B-Base", task="voice_clone")
+        request = DummyRequest(
+            input="hello",
+            model="Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+            task="voice_clone",
+            instruct="Read dramatically.",
+        )
+
+        with self.assertRaises(Exception):
+            validate_request(request, settings)
+
+    def test_validate_rejects_instruct_for_06b_custom_voice(self):
+        settings = ServerSettings(model="Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice", task="custom_voice")
+        request = DummyRequest(
+            input="hello",
+            model="Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
+            task="custom_voice",
+            instruct="Read dramatically.",
+        )
+
+        with self.assertRaises(Exception):
+            validate_request(request, settings)
 
     def test_mark_downloaded_updates_job_metadata(self):
         with tempfile.TemporaryDirectory() as temp_dir:

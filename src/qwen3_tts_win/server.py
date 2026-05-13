@@ -83,6 +83,7 @@ class CreateTTSJobRequest(BaseModel):
     language: str | None = Field(default=None)
     speaker: str | None = Field(default=None)
     instruct: str | None = None
+    instructions: str | None = None
     reference_text: str | None = None
     reference_audio_base64: str | None = None
     reference_audio_filename: str | None = None
@@ -716,6 +717,7 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
 
 def normalize_request(request: CreateTTSJobRequest, settings: ServerSettings) -> CreateTTSJobRequest:
     task = (request.task or settings.task).strip()
+    instruct = request.instruct or request.instructions
     return CreateTTSJobRequest(
         input=strip_qwen_stress_marks(request.input.strip()) or "",
         model=resolve_model_for_task((request.model or settings.model).strip(), task),
@@ -724,7 +726,8 @@ def normalize_request(request: CreateTTSJobRequest, settings: ServerSettings) ->
         response_format=(request.response_format or "wav").lower(),
         language=(request.language or settings.language).strip() or settings.language,
         speaker=(request.speaker or settings.speaker).strip() or settings.speaker,
-        instruct=strip_qwen_stress_marks(request.instruct),
+        instruct=strip_qwen_stress_marks(instruct),
+        instructions=None,
         reference_text=strip_qwen_stress_marks(" ".join(request.reference_text.split())) if request.reference_text else None,
         reference_audio_base64=request.reference_audio_base64,
         reference_audio_filename=request.reference_audio_filename,
@@ -751,6 +754,17 @@ def validate_request(request: CreateTTSJobRequest, settings: ServerSettings) -> 
         )
     if request.response_format not in SUPPORTED_RESPONSE_FORMATS:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only response_format='wav' is supported.")
+    effective_instruct = request.instruct or settings.instruct
+    if effective_instruct and request.task == "voice_clone":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Qwen3-TTS Base voice_clone does not support instruct/instructions. Use custom_voice with a 1.7B CustomVoice model or voice_design.",
+        )
+    if effective_instruct and request.task == "custom_voice" and "0.6B-CustomVoice" in request.model:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Qwen3-TTS 0.6B CustomVoice ignores instruct/instructions. Use Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice for style control.",
+        )
     if request.task == "voice_clone" and not request.reference_audio_base64:
         try:
             reference_path = find_reference_in_shared(settings.shared_dir, request.voice)

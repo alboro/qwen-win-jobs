@@ -75,6 +75,13 @@ Use a custom-voice checkpoint instead of voice clone:
 qwen3-tts.cmd text.txt .\output\speech.wav --task custom_voice --model Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice --speaker Ryan
 ```
 
+Use the 1.7B CustomVoice checkpoint when you need `instruct`/`instructions`
+style control:
+
+```cmd
+qwen3-tts-server.cmd --host 0.0.0.0 --port 8030 --device cuda --dtype float16 --task custom_voice --model Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice --language Russian --speaker Ryan
+```
+
 ## Async Server
 
 ```cmd
@@ -114,6 +121,10 @@ curl http://127.0.0.1:8030/v1/tts/jobs/<job_id>/audio --output result.wav
 ## API Notes
 
 - `voice` is a local shared reference prefix, not a hosted voice name.
+- `instructions` is accepted as an OpenAI-style alias for Qwen `instruct`.
+- Qwen Base `voice_clone` does not support `instruct`/`instructions`.
+- Qwen `0.6B-CustomVoice` ignores `instruct`/`instructions`; use
+  `Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice` for style control.
 - `reference_audio_base64` overrides shared reference lookup for that request.
 - `reference_text` is strongly recommended for Qwen3-TTS Base voice clone.
 - `response_format` is currently `wav` only.
