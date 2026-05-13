@@ -132,6 +132,46 @@ curl http://127.0.0.1:8030/v1/tts/jobs/<job_id>/audio --output result.wav
 - Jobs are persisted under `.data\jobs`.
 - Terminal jobs are cleaned up automatically.
 
+## Russian Stress Marks
+
+Qwen3-TTS does not have a dedicated stress-marking syntax for Russian. Below are the
+results of community experiments on the 0.6B Base model.
+
+### What works
+
+**Duplicate the stressed vowel** — the only reliable method found so far:
+
+```
+Я еду в заамок, на котором замоок.
+У моей рукии пять пальцев. Мои руки длинные!
+```
+
+Repeating the stressed vowel (е→ее, о→оо, и→ии, etc.) reliably shifts the accent to
+that syllable.
+
+**IPA transliteration inline** also appears to work:
+
+```
+zamək   (stress on first syllable)
+zaˈmok  (stress on second syllable)
+```
+
+### What does not work
+
+All of the following were tested and had no effect or produced garbled output:
+
+| Notation | Example |
+|---|---|
+| Capital vowel | `зАмок` / `замОк` |
+| `+` before vowel | `з+амок` / `зам+ок` |
+| `^` before vowel | `з^aмок` / `зам^ок` |
+| Combining acute `́` (U+0301) | `за́мок` / `замо́к` |
+| SSML `<phoneme>` IPA | `<phoneme alphabet="ipa" ph="ˈzamək">замок</phoneme>` |
+| Apostrophe before vowel | `з'амок` / `зам'ок` |
+| `!` before vowel | `з!aмок` / `зам!ок` |
+
+---
+
 ## Responsible Use
 
 Use only voices and recordings you have the right to use.
